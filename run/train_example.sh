@@ -3,10 +3,10 @@
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,8
 MOBILE_MEMORY=202108
 
-OUTPUT=./ckpt/checkpoint_${MOBILE_MEMORY}/
+OUTPUT=./training-runs/checkpoint_${MOBILE_MEMORY}/
 mkdir -p ${OUTPUT}
 
-LOG=./logs/logs_${MOBILE_MEMORY}
+LOG=./training-runs/logs_${MOBILE_MEMORY}
 mkdir -p ${LOG}
 
 # For singel GPU, set --nproc_per_node=1
