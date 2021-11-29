@@ -11,7 +11,7 @@ def parse_args():
     # basic args
     parser.add_argument('-a', '--arch', metavar='ARCH', default='',
                         help='model architecture')
-    parser.add_argument('--img-root-dir', default="/home/data4/OULU/", type=str,
+    parser.add_argument('--img-root-dir', default="", type=str,
                         help='The directory saving dataset')
     parser.add_argument('--train-file-path', default=None, type=str,
                         help='The dataset list path for training')
