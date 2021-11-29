@@ -3,10 +3,10 @@
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,8
 MOBILE_MEMORY=202108
 
-OUTPUT=./CLS/ckpt/checkpoint_${MOBILE_MEMORY}/
+OUTPUT=./ckpt/checkpoint_${MOBILE_MEMORY}/
 mkdir -p ${OUTPUT}
 
-LOG=./CLS/logs/logs_${MOBILE_MEMORY}
+LOG=./logs/logs_${MOBILE_MEMORY}
 mkdir -p ${LOG}
 
 python3 -u -m torch.distributed.launch --nproc_per_node=8 --master_port 11111 train.py \
