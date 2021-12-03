@@ -11,7 +11,7 @@ This repository is an implementation of basic image classification framework.
   `pip3 install -i https://mirrors.aliyun.com/pypi/simple  -r requirements.txt`
  
 ### Train
-`sh run/train_example.sh`
+`sh run/train.sh`
 
 ### Test
 `sh run/test.sh`
