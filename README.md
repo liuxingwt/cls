@@ -2,7 +2,12 @@
 This repository is an implementation of basic image classification framework.
 
 ### Environment
-`pip3 install -i https://mirrors.aliyun.com/pypi/simple  -r requirements.txt`
++ OS version: Ubuntu 18.04
++ NVIDIA diver version: 465.27
++ Cuda version: 11.3
++ Python version: 3.6.9
++ Python packages installation:
+  `pip3 install -i https://mirrors.aliyun.com/pypi/simple  -r requirements.txt`
  
 ### Train
 `sh run/train.sh`
