@@ -32,5 +32,8 @@ This repository is an implementation of basic image classification framework.
 ### Changing log:
 **20210524**: change the order of input image channel from BGR to RGB, to better adapt to pretrained model in ImageNet.
 + dataloader.py：修改了图片加载顺序BGR->RGB
-+ test.py：修改了图片加载顺序BGR->RGB
-+ train.py: 在一个epoch内保存模型时，只保存权重
++ test.py：修改了图片加载顺序BGR->RGB 
++ train.py: 在一个epoch内保存模型时，只保存权重  
+**20211203**:  
++ optim/: 增加了ranger优化器，并修改了build_optimizer.py和train.py文件  
++ tools/metrics.py：重构了二分类结果evaluation的流程代码  
