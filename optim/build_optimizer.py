@@ -1,5 +1,5 @@
 import torch
-
+from optim.ranger import Ranger
 
 def build_optimizer(args):
     if args.optimizer_type == "sgd":
