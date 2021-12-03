@@ -1,135 +1,138 @@
+#!/usr/bin/python3
+# -*- encoding: utf-8 -*-
+import sys
+sys.path.append('.')
+sys.path.append('..')
+
 import os
+import time
+import numpy as np
 import argparse
 import cv2
-import numpy as np
 from tqdm import tqdm
-from glob import glob
-from collections import OrderedDict
 from termcolor import cprint
-
+from collections import OrderedDict
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from scipy.special import softmax
+import torchvision.transforms as transforms
 import albumentations as alb
 from albumentations.pytorch.transforms import ToTensorV2
 
+from tools import metrics
 from models import build_model
-from tools.oulu_utils import accuracy, performances
-
-parse = argparse.ArgumentParser()
-parse.add_argument('-a', '--arch', metavar='ARCH', default='resnet50', help='model architecture')
-parse.add_argument('--input-size', default=224, type=int, help='model input size')
-parse.add_argument('--crop-scale', default=1.3, type=float, help='scale to crop a face from raw image')
-parse.add_argument('--ckpt_path', dest = 'ckpt_path', type = str, default='./ckpt/checkpoint_20210706/checkpoint-40.pth.tar')
-parse.add_argument('-b', '--batch-size', default=1, type=int, metavar='N')
-parse.add_argument('-j', '--workers', default=16, type=int, metavar='N', help='number of data loading workers (default: 16)')
-parse.add_argument('--img-root-dir', default="/home/data4/OULU/", type=str, help='The directory saving dataset')
-parse.add_argument('--val-file-path',  type = str, default="./data/list_oulu/p1_dev_list.txt")
-parse.add_argument('--test-file-path', type = str, default="./data/list_oulu/p1_test_list.txt")
-
-parse.add_argument('--result-dir', type = str, default="./result/result_oulu/")
-parse.add_argument('--result-val-path', type = str, default="p1_dev_result.txt")
-parse.add_argument('--result-test-path', type = str, default="p1_test_result.txt")
-parse.add_argument('--out', dest = 'out', type = str, default="p1_result.txt")
-args = parse.parse_args()
-
-# reset file path
-date = args.ckpt_path.split("/")[-2].split("_")[-1]
-epoch = int(args.ckpt_path.split("/")[-1].split(".")[0].split("-")[-1])
-args.result_dir = os.path.join(args.result_dir, date)
-if not os.path.exists(args.result_dir ):
-    os.makedirs(args.result_dir)
-args.result_val_path = os.path.join(args.result_dir, "epoch_" + str(epoch) + "_" + args.result_val_path)
-args.result_test_path = os.path.join(args.result_dir, "epoch_" + str(epoch) + "_" + args.result_test_path)
-args.out = os.path.join(args.result_dir, args.out)
 
 
-def main(args):
-    # create model
-    args.pretrained = False
-    model = build_model.build_model(args).cuda()
-    _state_dict = clean_dict(model, torch.load(args.ckpt_path)['state_dict'])
-    model.load_state_dict(_state_dict)
-    model.eval()
+# global parameters
+input_size = 224
+n_classes = 2
+crop_image = False
+to_tensor = alb.Compose([
+    alb.Resize(input_size, input_size),
+    alb.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+    ToTensorV2(),
+])
 
+
+def inference(args):
+    net = build_model.build_model(args)
+    net.cuda()
+    net.load_state_dict(torch.load(args.ckpt), strict=False)
+    net = load_dict(args, net)
+    net.eval()
+
+    ds = dataloader(args.valid_db)
+    print('Start Inference ......')
+    sum_time = 0.0
+    lines_res = []
+    
     with torch.no_grad():
-        ################  val  ###############
-        args.file_path = args.val_file_path
-        val_loader, val_sampler = build_dataloader(args)
-        score_list = []
-        sum_score = 0
-        sum_label = 0
+        l = 0
+        for img_path, data, label, len_ in ds:
+            print("current count: ------- ", l)
+            # img = to_tensor(data)                 # for torch transform
+            img = to_tensor(image=data)['image']    # for albumentations
+            img = torch.unsqueeze(img, 0)
+            img = img.type(torch.FloatTensor)
+            img = img.cuda()
 
-        for i, datas in enumerate(val_loader):
-            images = datas[0].cuda(non_blocking=True)
-            spoof_label = datas[1].cuda(non_blocking=True)
-            bs = spoof_label.size(0)
-            embedding, output = model(images)
-            output = F.softmax(output, dim=1)
-            output = output.squeeze().cpu().numpy() 
-            if i > 0 and i % 10 == 0: 
-                score_list.append('{} {}\n'.format(sum_score/10, sum_label/10))
-                sum_score = output[-1]
-                sum_label = spoof_label[0]
-            else:
-                sum_score += output[-1]
-                sum_label += spoof_label[0] 
-            if i % 100 == 0:
-                print("val count: {} / {}".format(str(i), str(len(val_loader))))
-        score_list.append('{} {}\n'.format(sum_score/10, sum_label/10))
-        with open(args.result_val_path, 'w') as file:
-            file.writelines(score_list) 
+            time_start = time.time()
+            out = net(img)[1]
+            out = F.softmax(out, dim=1)
+            out = out.squeeze().cpu().numpy()
 
-        ################  test  ###############
-        args.file_path = args.test_file_path
-        test_loader, test_sampler = build_dataloader(args)
-        score_list = []
-        sum_score = 0
-        sum_label = 0
+            line_res = img_path + ' ' + str(label) + ' ' + str(out[-1]) + '\n'
+            lines_res.append(line_res)
 
-        for i, datas in enumerate(test_loader):
-            images = datas[0].cuda(non_blocking=True)
-            spoof_label = datas[1].cuda(non_blocking=True)
-            bs = spoof_label.size(0)
-            embedding, output = model(images)
-            output = F.softmax(output, dim=1)
-            output = output.squeeze().cpu().numpy()             
-            if i > 0 and i % 10 == 0:             
-                score_list.append('{} {}\n'.format(sum_score/10, sum_label/10))
-                sum_score = output[-1]
-                sum_label = spoof_label[0]
-            else:
-                sum_score += output[-1]
-                sum_label += spoof_label[0]
-            if i % 100 == 0:
-                print("test count: {} / {}".format(str(i), str(len(test_loader))))
-        score_list.append('{} {}\n'.format(sum_score/10, sum_label/10))
-        with open(args.result_test_path, 'w') as file:
-            file.writelines(score_list)
-    ################  evaluate by video  ############### 
-    evaluate_by_video(epoch, args.out, args.result_val_path, args.result_test_path)
-    return 
+            time_end = time.time()
+            sum_time += float(time_end-time_start)
+
+            print(img_path, out)
+            l += 1
+    
+    avg_time = sum_time / len_
+    fps = 1. / avg_time
+    print('avg time = %.5f, fps = %.2f'%(avg_time, fps))
+
+    with open(args.out, 'w') as fid:
+        fid.writelines(lines_res)
+    performance_str = metrics.eval_roc(args.out)
 
 
-def evaluate_by_video(epoch, out, result_val_path, result_test_path):
-    with open(out, 'a') as fw:
-        val_threshold, test_threshold, val_ACC, val_ACER, test_ACC, test_APCER, test_BPCER, test_ACER, test_ACER_test_threshold = performances(result_val_path, result_test_path)
-            
-        print('epoch:%d, Val:  val_threshold= %.4f, val_ACC= %.4f, val_ACER= %.4f' % (epoch, val_threshold, val_ACC, val_ACER))
-        fw.write('\nepoch:%d, Val:  val_threshold= %.4f, val_ACC= %.4f, val_ACER= %.4f \n' % (epoch, val_threshold, val_ACC, val_ACER))
+
+def sampler(img_path, bboxes):
+    if crop_image:
+        img = get_img_crop(img_path, bboxes)
+    else:
+        img = cv2.imread(img_path)
+
+    # exchange channel: BGR ==> RGB
+    img = img[: ,:, [2, 1, 0]]
+    if img is None:
+        return None
+
+    img = cv2.resize(img, (input_size, input_size))
+    return img
+
+
+
+def dataloader(path_input_list):
+    with open(path_input_list, 'r') as fid:
+        lines = fid.readlines()
+    for l, line in enumerate(lines):
+        name_splits = line.strip().split()
+        img_path = name_splits[0]
+        label = int(float(name_splits[1]))
+        bboxes = [int(x) for x in name_splits[2:]]
+        data = sampler(img_path, bboxes)
         
-        print('epoch:%d, Test:  ACC= %.4f, APCER= %.4f, BPCER= %.4f, ACER= %.4f' % (epoch, test_ACC, test_APCER, test_BPCER, test_ACER))
-        fw.write('epoch:%d, Test:  ACC= %.4f, APCER= %.4f, BPCER= %.4f, ACER= %.4f \n' % (epoch, test_ACC, test_APCER, test_BPCER, test_ACER))
-    return 
+        if data is None:
+            print("image none")
+            yield img_path, np.zeros((input_size, input_size,3)), "0", len(lines)
+        yield img_path, data, label, len(lines)
 
+
+
+def load_dict(args, model, insert_args=None):
+    if os.path.isfile(args.ckpt):
+        cprint('=> loading pth from {} ...'.format(args.ckpt), 'red')
+        checkpoint = torch.load(args.ckpt)
+        _state_dict = clean_dict(model, checkpoint['state_dict'], insert_args=insert_args)
+        model.load_state_dict(_state_dict)
+        # delete to release more space
+        del checkpoint
+        del _state_dict
+    else:
+        print("=> No checkpoint found at '{}'".format(args.ckpt))
+    return model
 
 
 
 def clean_dict(model, state_dict, insert_args=None):
     _state_dict = OrderedDict()
-    # print(list(state_dict.items())[0][0])
-    # print(list(model.state_dict().items())[0][0])
+    print(list(state_dict.items())[0][0])
+    print(list(model.state_dict().items())[0][0] )
+    # exit(1)
+    
     for k, v in state_dict.items():
         k_ = k.split('.')
         assert k_[0] == 'module'
@@ -157,112 +160,48 @@ def clean_dict(model, state_dict, insert_args=None):
 
 
 
-
-def build_dataloader(args):
-    """
-    Interface to build train or val loader 
-    """
-    test_transform = alb.Compose([
-        alb.Resize(224, 224),
-        alb.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-        ToTensorV2(),
-        ])
-
-    dataset = Dataset(
-        args.file_path,
-        args.img_root_dir,
-        transform = test_transform,
-        input_size = args.input_size,
-        crop_scale = args.crop_scale)
-
-    sampler = None
-    loader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=args.batch_size,
-        num_workers=args.workers,
-        pin_memory=True,
-        sampler=sampler,
-        drop_last=True) 
-    return loader, sampler
-
-
-class Dataset(torch.utils.data.Dataset):
-    def __init__(self, ann_file, img_root_dir, transform=None, input_size=224, crop_scale=1.5):
-        self.ann_file = ann_file
-        self.img_root_dir = img_root_dir 
-        self.transform = transform
-        self.input_size = input_size
-        self.crop_scale = crop_scale
-
-        self.image_list = []
-        self.label_list = []
-        self.bbox_list = []
-        with open(self.ann_file, 'r') as f:
-            self.lines = f.readlines()
-
-            for line in tqdm(self.lines):
-                splits = line.strip().split()
-                if len(line.strip()) == 0 or len(splits) != 6:
-                    continue
-                
-                image_full_name = os.path.join(self.img_root_dir, splits[0])
-                label = splits[1]
-                bbox = splits[2:6]
-                bbox = [int(x) for x in bbox]
-
-                self.image_list.append(image_full_name)
-                self.label_list.append(int(label))
-                self.bbox_list.append(bbox)
-        self.n_images = len(self.image_list)
-        cprint('Build Train Dataset => in dataloader.py: finally get %d images'%(self.n_images), 'green')
-
-    def __getitem__(self, index):
-        img_path = self.image_list[index]
-        label = self.label_list[index]
-        bbox = self.bbox_list[index]
-
-        cropped_img = get_img_crop(img_path, bbox, self.crop_scale)
-
-        if cropped_img is None or cropped_img.shape[0] * cropped_img.shape[1] == 0:
-            face = torch.zeros(3, self.input_size, self.input_size)
-            return face, int(0)
-        
-        face = self.transform(image=cropped_img)['image']
-        return face, label
-
-    def __len__(self):
-        return self.n_images
-
-
-def get_img_crop(img_path, bbox, scale):
+def get_img_crop(img_path, bbox, scale=2.5):
     """
     crop a raw image from bbox.
     bbox is gotton from a face detection model.
     x_min, y_min, face_x, face_y = bbox
     """
     img = cv2.imread(img_path)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     if img is None:
         print('reading empty image: ', img_path)
         return None
 
-    h, w = img.shape[:2]
+    shape = img.shape
+    h, w = shape[:2]
     x_min, y_min, face_x, face_y = bbox
     x_mid = x_min + face_x / 2.0
     y_mid = y_min + face_y / 2.0
 
-    x_min = max(int(x_mid - face_x * scale / 2.0), 0) 
-    x_max = min(int(x_mid + face_x * scale / 2.0), w)
-    y_min = max(int(y_mid - face_y * scale / 2.0), 0)
-    y_max = min(int(y_mid + face_y * scale / 2.0), h)
+    if x_mid<=0 or y_mid<=0 or face_x<=0 or face_y<=0:
+        return None
 
+    x_min = int( max(x_mid - face_x * scale / 2.0, 0) )
+    x_max = int( min(x_mid + face_x * scale / 2.0, w) )
+    y_min = int( max(y_mid - face_y * scale / 2.0, 0) )
+    y_max = int( min(y_mid + face_y * scale / 2.0, h) )
+
+    if x_min >= x_max or y_min >= y_max:
+        return None   
     return img[y_min:y_max, x_min:x_max, :]
 
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    main(args)
+    parse = argparse.ArgumentParser()
+    parse.add_argument('-a', '--arch', metavar='ARCH', default='deit', help='model architecture')
+    parse.add_argument('--crop-scale', default=2.5, type=float, help='scale to crop a face from raw image')
+    parse.add_argument('--ckpt', dest = 'ckpt', type = str, default='./ckpt/checkpoint_20210524/epoch_4.pth.tar')
+    parse.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
+    parse.add_argument('--valid_db', dest = 'valid_db', type = str, default="/home/projects/list/list_72/cbsr_mas_v6_hifi-mask-test_bbox.txt")
+    parse.add_argument('--out', dest = 'out', type = str, default="/home/projects/list/test_result_transformer/checkpoint_20210524_epoch_4_cbsr_mas_v6_hifi-mask-test_bbox.txt")
+    args = parse.parse_args()
+    inference(args)
 
-    # evaluate_by_video(epoch, args.out, args.result_val_path, args.result_test_path)
+
