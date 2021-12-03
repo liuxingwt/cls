@@ -5,7 +5,6 @@ This repository is an implementation of basic image classification framework.
 + OS version: Ubuntu 18.04
 + NVIDIA diver version: 465.27
 + Cuda version: 11.3
-+ Cudnn version: 
 + Python version: 3.6.9
 + Python packages installation:   
   `pip3 install -i https://mirrors.aliyun.com/pypi/simple  -r requirements.txt`
@@ -16,7 +15,6 @@ This repository is an implementation of basic image classification framework.
 ### Test
 `sh run/test.sh`
  
-
 ### Reference:
 #### Code:
 + pytroch-imageNet: https://github.com/pytorch/examples/blob/master/imagenet/main.py
@@ -24,7 +22,6 @@ This repository is an implementation of basic image classification framework.
 + Vit-Pytorch: https://github.com/lucidrains/vit-pytorch  
 + DeiT: https://github.com/facebookresearch/deit
 + Swin-Transformer: https://github.com/microsoft/Swin-Transformer  
-
   
 #### Paper:
 + Vit: https://arxiv.org/abs/2010.11929
