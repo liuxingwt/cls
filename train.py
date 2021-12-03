@@ -29,7 +29,7 @@ from models import build_model
 from dataloader import build_dataloader
 from loss import build_loss
 from lr_schedule import build_lr_schedule
-from optimizer import build_optimizer
+from optim import build_optimizer
 
 import parser
 from tools.utils import AverageMeter, ProgressMeter, accuracy, cal_metrics, find_best_threshold
@@ -83,7 +83,7 @@ def main(args):
     args.model = model
     model = nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], find_unused_parameters=True)
     criterion = build_loss(args)
-    optimizer = build_optimizer(args)
+    optimizer = build_optimizer.build_optimizer(args)
     scheduler = build_lr_schedule(args, optimizer)
 
     # saving checkpoint by package timm        
