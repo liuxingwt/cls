@@ -1,5 +1,6 @@
 import torch
-from optim.ranger import Ranger
+from .ranger import Ranger
+
 
 def build_optimizer(args):
     if args.optimizer_type == "sgd":
@@ -13,6 +14,8 @@ def build_optimizer(args):
         optimizer = torch.optim.AdamW(args.model.parameters(), args.lr,
                                     betas=(0.9, 0.999), eps=1e-08, 
                                     weight_decay=args.weight_decay)
+    elif args.optimizer_type == "ranger":
+        optimizer = Ranger(args.model.parameters(), args.lr)
     else:
         raise Exception("optimizer type is not defined.")
     return optimizer
