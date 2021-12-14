@@ -204,10 +204,11 @@ def validate(args, val_loader, model, criterion, scheduler, saver, epoch, total_
 #         args.logger.info(info)
         
         # print best epoch info
-        info_best = 'Best Epoch {}:\n\tTPR: {:.4f} FPR: {:.4f} AUC: {:.4f} ACC: {:.4f} ACER: {:.4f}'.format(
-            epoch, saver.best_metric.TPR, saver.best_metric.FPR, saver.best_metric.AUC, saver.best_metric.ACC, saver.best_metric.ACER * 100
+       info_best = 'Best Epoch {}:\tTPR: {:.4f} FPR: {:.4f} AUC: {:.4f} ACC: {:.4f} ACER: {:.4f}'.format(
+            saver.best_epoch, saver.best_metric.TPR, saver.best_metric.FPR, saver.best_metric.AUC, saver.best_metric.ACC, saver.best_metric.ACER * 100
         )
         args.logger.info(info_best)
+
 
 
 if __name__ == '__main__':
