@@ -182,21 +182,32 @@ def validate(args, val_loader, model, criterion, scheduler, saver, epoch, total_
         filename = '-'.join([saver.save_prefix, str(epoch)]) + saver.extension
         save_path = os.path.join(saver.checkpoint_dir, filename)
         torch.save(save_state, save_path)
-        # print("here")
-
-        # old saving strategy
-        # best_metric, best_epoch = saver.save_checkpoint(epoch)
+        
+         # Save the best epoch
+        if epoch == 1:
+            saver.best_epoch = epoch
+            saver.best_metric = metrics
+        elif saver.best_metric is not None and saver.best_metric.ACC < metrics.ACC:
+            saver.best_epoch = epoch
+            saver.best_metric = metrics
+        
 
         for k, v in metrics.items():
             args.logger.info('val_{}: {:.4f}'.format(k, v * 100))
 
         cur_lr = [group['lr'] for group in scheduler.optimizer.param_groups][0]
-        info = 'VAL_INFO EPOCH {}:\n\tTPR: {:.4f} FPR: {:.4f} AUC: {:.4f} ACC: {:.4f} Loss: {:.4f} lr: {:.5f}'.format(
-            epoch, metrics.TPR, metrics.FPR, metrics.AUC, metrics.ACC, loss_m.avg, cur_lr
+        
+#         # print validation info 
+#         info = 'VAL_INFO EPOCH {}:\n\tTPR: {:.4f} FPR: {:.4f} AUC: {:.4f} ACC: {:.4f} Loss: {:.4f} lr: {:.5f}'.format(
+#             epoch, metrics.TPR, metrics.FPR, metrics.AUC, metrics.ACC, loss_m.avg, cur_lr
+#         )
+#         args.logger.info(info)
+        
+        # print best epoch info
+        info_best = 'Best Epoch {}:\n\tTPR: {:.4f} FPR: {:.4f} AUC: {:.4f} ACC: {:.4f} ACER: {:.4f}'.format(
+            epoch, saver.best_metric.TPR, saver.best_metric.FPR, saver.best_metric.AUC, saver.best_metric.ACC, saver.best_metric.ACER * 100
         )
-        args.logger.info(info)
-        # args.logger.info('best_epoch: {} best_val_ACER: {:.4f}'.format(best_epoch, best_metric * 100))
-
+        args.logger.info(info_best)
 
 
 if __name__ == '__main__':
