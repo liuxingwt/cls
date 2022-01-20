@@ -90,6 +90,6 @@ def get_scores(path_txt, isreverse = False):
 
  
 if __name__ == '__main__':
-    
+    # The line format of score_file is: image_path  label ouput 
     score_file = "./results/out_20211203.txt"
     eval_roc(score_file)
