@@ -21,8 +21,8 @@ def build_lr_schedule(args, optimizer):
         lr_scheduler = CosineLRScheduler(
             optimizer,
             t_initial=num_steps,
-            t_mul=1.,
             lr_min=5e-6,
+            # t_mul=1.,
             # warmup_lr_init=args.TRAIN.WARMUP_LR,
             # warmup_t=warmup_steps,
             cycle_limit=1,
